@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Мой блог</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: system-ui, Arial; margin: 16px; }
+    .btn { padding: 10px 14px; border-radius: 10px; border: 0; background:#2b8a3e; color:#fff; cursor:pointer; }
+    input, textarea { width:100%; padding:10px; margin:8px 0; border-radius:10px; border:1px solid #ccc; }
+    .card { border:1px solid #eee; border-radius:12px; padding:12px; margin:10px 0; }
+    .note { color:#666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>📰 Мой блог</h2>
+  <div class="card">
+    <input id="title" placeholder="Заголовок" />
+    <textarea id="content" placeholder="Текст (необязательно)"></textarea>
+    <div class="note">После «Опубликовать» окно закроется, а запись появится в боте.</div>
+    <button class="btn" id="send">Опубликовать</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand(); // сделать окно больше по высоте
+
+    document.getElementById('send').onclick = () => {
+      const title = document.getElementById('title').value.trim();
+      const content = document.getElementById('content').value.trim();
+      if (!title) {
+        document.getElementById('status').innerText = 'Введите заголовок';
+        return;
+      }
+      tg.sendData(JSON.stringify({type:'blog_post', title, content}));
+      tg.close(); // закрываем WebApp
+    };
+  </script>
+</body>
+</html>
