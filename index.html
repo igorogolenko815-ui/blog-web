@@ -3,40 +3,57 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Мой блог</title>
+  <title>Блог — добавление поста</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body { font-family: system-ui, Arial; margin: 16px; }
-    .btn { padding: 10px 14px; border-radius: 10px; border: 0; background:#2b8a3e; color:#fff; cursor:pointer; }
-    input, textarea { width:100%; padding:10px; margin:8px 0; border-radius:10px; border:1px solid #ccc; }
-    .card { border:1px solid #eee; border-radius:12px; padding:12px; margin:10px 0; }
-    .note { color:#666; font-size: 14px; }
+    body{font-family:system-ui,Arial;margin:16px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 16px}
+    .btn{padding:10px;border-radius:10px;border:0;background:#2b8a3e;color:#fff;cursor:pointer}
+    .chip{padding:10px;border-radius:10px;border:1px solid #ccc;background:#fafafa;cursor:pointer;text-align:center}
+    .chip.active{border-color:#2b8a3e;background:#eaf6ec}
+    input,textarea{width:100%;padding:10px;margin:8px 0;border-radius:10px;border:1px solid #ccc}
+    .note{color:#666;font-size:14px}
   </style>
 </head>
 <body>
-  <h2>📰 Мой блог</h2>
-  <div class="card">
-    <input id="title" placeholder="Заголовок" />
-    <textarea id="content" placeholder="Текст (необязательно)"></textarea>
-    <div class="note">После «Опубликовать» окно закроется, а запись появится в боте.</div>
-    <button class="btn" id="send">Опубликовать</button>
+  <h2>📰 Новый пост</h2>
+
+  <div class="note">1) Выбери категорию • 2) Введи заголовок и текст • 3) Нажми «Опубликовать» • 4) Затем отправь аудио/доки боту — они прикрепятся к этому посту.</div>
+
+  <h3>Категория</h3>
+  <div class="grid" id="cats">
+    <div class="chip" data-val="mgts">МГТС/Ростелеком/Домофон/Счётчики/Энергосбыт</div>
+    <div class="chip" data-val="clinic">Поликлиника</div>
+    <div class="chip" data-val="speeches">Спичи</div>
+    <div class="chip" data-val="faq">Ответы на вопросы</div>
   </div>
+
+  <input id="title" placeholder="Заголовок" />
+  <textarea id="content" placeholder="Текст (необязательно)"></textarea>
+  <button class="btn" id="send">Опубликовать</button>
 
   <div id="status"></div>
 
   <script>
     const tg = window.Telegram.WebApp;
-    tg.expand(); // сделать окно больше по высоте
+    tg.expand();
+
+    let category = null;
+    document.querySelectorAll('.chip').forEach(el=>{
+      el.onclick=()=>{
+        document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+        el.classList.add('active');
+        category = el.dataset.val;
+      }
+    });
 
     document.getElementById('send').onclick = () => {
       const title = document.getElementById('title').value.trim();
       const content = document.getElementById('content').value.trim();
-      if (!title) {
-        document.getElementById('status').innerText = 'Введите заголовок';
-        return;
-      }
-      tg.sendData(JSON.stringify({type:'blog_post', title, content}));
-      tg.close(); // закрываем WebApp
+      if (!category){document.getElementById('status').innerText='Выбери категорию';return;}
+      if (!title){document.getElementById('status').innerText='Введи заголовок';return;}
+      tg.sendData(JSON.stringify({type:'blog_post', category, title, content}));
+      tg.close();
     };
   </script>
 </body>
