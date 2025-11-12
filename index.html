@@ -23,18 +23,25 @@
     .note{font-size:12px;color:#bfc3ff}
     .muted{color:#9aa0ff;font-size:12px}
     audio{width:100%;margin-top:6px}
-    /* анимированная вкладка для новеньких */
-    .pulse-wrap{position:relative;border-radius:14px;padding:2px}
-    .pulse-border{
-      position:absolute;inset:-2px;border-radius:16px;
-      background:conic-gradient(from 0deg at 50% 50%, #ff3b3b, #ff9a3b, #ffd23b, #ff3b3b);
-      filter:blur(6px);opacity:.75;animation:spin 4s linear infinite;
-      mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
-      -webkit-mask-composite:xor;mask-composite:exclude;padding:2px;
+
+    /* ===== НЕОНОВАЯ БЕГАЮЩАЯ РАМКА ВОКРУГ КНОПКИ «НОВЕНЬКИМ» ===== */
+    .pulse-wrap{ position:relative; border-radius:14px; }
+    .pulse-wrap .runner{
+      position:absolute; inset:-3px;               /* толщина рамки */
+      border-radius:16px; padding:3px;              /* совпадает с inset по модулю */
+      background:
+        conic-gradient(from var(--a,0deg),
+          #ff3b3b 0 14deg, transparent 14deg 360deg);
+      /* вырезаем середину — остаётся только «бордер» */
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      animation: runner-spin 2.2s linear infinite;
+      filter: drop-shadow(0 0 6px #ff3b3b) drop-shadow(0 0 14px #ff3b3b);
+      pointer-events:none;                          /* не мешает клику по кнопке */
     }
-    @keyframes spin{to{transform:rotate(1turn)}}
-    .tab.badge{position:relative;overflow:visible}
-    .tab.badge .dot{position:absolute;top:-6px;right:-6px;width:10px;height:10px;border-radius:50%;background:#ff4747;box-shadow:0 0 0 6px rgba(255,71,71,.25)}
+    @keyframes runner-spin { to { --a: 360deg; } }
+    /* ================================================================= */
+
     /* маленькие иконки в подтабах */
     .subtabs .tab{display:flex;align-items:center;gap:6px}
   </style>
@@ -45,13 +52,12 @@
   <!-- Главные вкладки -->
   <div class="tabs" id="main-tabs">
     <div id="tab-speech" class="tab active">📚 Читать спичи</div>
-
     <div id="tab-audio" class="tab">🎧 Слушать холодку</div>
 
     <!-- вкладка с анимированной рамкой -->
     <div class="pulse-wrap">
-      <div class="pulse-border"></div>
-      <div id="tab-newbies" class="tab badge">🆕 Инфа для новеньких <span class="dot"></span></div>
+      <div class="runner"></div>
+      <div id="tab-newbies" class="tab">🆕 Инфа для новеньких</div>
     </div>
   </div>
 
@@ -77,7 +83,7 @@
 
   const DIR_SPEECH  = "speeches";
   const DIR_AUDIO   = "audio";
-  const DIR_NEWBIES = "newbies";   // <<— новые файлы для «Инфа для новеньких»
+  const DIR_NEWBIES = "newbies";   // файлы для «Инфа для новеньких»
 
   const AUDIO_SUBS = {
     rostelecom: "rostelecom",
