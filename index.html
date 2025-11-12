@@ -1,60 +1,108 @@
 <!doctype html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Блог — добавление поста</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Доп Инфа — Спичи и Аудио</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    body{font-family:system-ui,Arial;margin:16px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 16px}
-    .btn{padding:10px;border-radius:10px;border:0;background:#2b8a3e;color:#fff;cursor:pointer}
-    .chip{padding:10px;border-radius:10px;border:1px solid #ccc;background:#fafafa;cursor:pointer;text-align:center}
-    .chip.active{border-color:#2b8a3e;background:#eaf6ec}
-    input,textarea{width:100%;padding:10px;margin:8px 0;border-radius:10px;border:1px solid #ccc}
-    .note{color:#666;font-size:14px}
+    :root { --accent:#6c5ce7; }
+    body{font-family:system-ui, Arial; margin:16px; background:#0f1226; color:#e9e9f5}
+    h2{margin:0 0 12px}
+    .tabs{display:flex; gap:8px; margin-bottom:12px}
+    .tab{padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); cursor:pointer}
+    .tab.active{background:var(--accent); border-color:var(--accent); color:#fff}
+    .grid{display:grid; grid-template-columns:1fr; gap:12px}
+    @media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
+    .card{border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); border-radius:14px; padding:12px}
+    .title{font-weight:600; margin-bottom:8px}
+    .btn{display:inline-block; padding:9px 12px; border-radius:10px; border:0; background:var(--accent); color:#fff; text-decoration:none}
+    .note{font-size:13px; color:#bfc3ff}
+    audio{width:100%; margin-top:6px}
   </style>
 </head>
 <body>
-  <h2>📰 Новый пост</h2>
-
-  <div class="note">1) Выбери категорию • 2) Введи заголовок и текст • 3) Нажми «Опубликовать» • 4) Затем отправь аудио/доки боту — они прикрепятся к этому посту.</div>
-
-  <h3>Категория</h3>
-  <div class="grid" id="cats">
-    <div class="chip" data-val="mgts">МГТС/Ростелеком/Домофон/Счётчики/Энергосбыт</div>
-    <div class="chip" data-val="clinic">Поликлиника</div>
-    <div class="chip" data-val="speeches">Спичи</div>
-    <div class="chip" data-val="faq">Ответы на вопросы</div>
+  <h2>🧩 Доп Инфа</h2>
+  <div class="tabs">
+    <div id="tab-speech" class="tab active">Спичи</div>
+    <div id="tab-audio"  class="tab">Аудио</div>
   </div>
 
-  <input id="title" placeholder="Заголовок" />
-  <textarea id="content" placeholder="Текст (необязательно)"></textarea>
-  <button class="btn" id="send">Опубликовать</button>
+  <div id="wrap-speech" class="grid"></div>
+  <div id="wrap-audio"  class="grid" style="display:none"></div>
 
-  <div id="status"></div>
+<script>
+  // Телеграм-вью развернуть
+  const tg = window.Telegram.WebApp; tg.expand();
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+  // ====== ТВОИ ССЫЛКИ (уже подставил) ======
+  // Если добавишь новые гугл-ссылки — просто вставляй их в массивы.
+  // Для аудио используем прямую ссылку вида uc?export=download&id=FILE_ID (ниже функция gd())
+  function gd(driveViewUrl){
+    // из вида https://drive.google.com/file/d/<ID>/view?... -> https://drive.google.com/uc?export=download&id=<ID>
+    const m = driveViewUrl.match(/\/d\/([^/]+)\//);
+    const id = m ? m[1] : null;
+    return id ? `https://drive.google.com/uc?export=download&id=${id}` : driveViewUrl;
+  }
 
-    let category = null;
-    document.querySelectorAll('.chip').forEach(el=>{
-      el.onclick=()=>{
-        document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
-        el.classList.add('active');
-        category = el.dataset.val;
-      }
-    });
+  const DATA = {
+    speech: [
+      // Документы (откроются по ссылке)
+      { title: "Спич #1", url: "https://drive.google.com/file/d/1iabZtTnf1kGZJ1X70JCNauWCi10LiOBa/view?usp=drive_link" },
+      { title: "Спич #2", url: "https://drive.google.com/file/d/1OFtXWKDADqlC-lLuxh16ifwPgVKaAO3g/view?usp=drive_link" },
+      { title: "Спич #3", url: "https://drive.google.com/file/d/1759Cz_qgCU3e1kg7wlADLd4BqUXKhh5p/view?usp=drive_link" },
+      { title: "Спич #4", url: "https://drive.google.com/file/d/1eISxyMlFfBYN2kSbfSBvEf6fr6a8q6Uu/view?usp=drive_link" },
+      { title: "Спич #5", url: "https://drive.google.com/file/d/1PoO9uwuPPpDHsvMSx-VsDB2ED3B8qWhY/view?usp=drive_link" },
+      { title: "Спич #6", url: "https://drive.google.com/file/d/1ojZbe535ULlWYEAksLwzUwme4ihXNSDm/view?usp=drive_link" },
+      { title: "Спич #7", url: "https://drive.google.com/file/d/1Fv10aUEghDj9GYu44Mny48UBJMT6BvaO/view?usp=drive_link" },
+      { title: "Спич #8", url: "https://drive.google.com/file/d/1hkp20uLS-ekEMmRiHfvMF40EA46cdfWL/view?usp=drive_link" }
+    ],
+    audio: [
+      // Аудио (играют прямо на странице)
+      { title: "Аудио #1", url: gd("https://drive.google.com/file/d/1xj25CgY1NyP-ZiTpnPxTC9SOkrx7L2Ml/view?usp=drive_link") },
+      { title: "Аудио #2", url: gd("https://drive.google.com/file/d/1bHR2Anj_nKzsN6h_hilfm1Uq13PNXO9l/view?usp=drive_link") }
+    ]
+  };
+  // =========================================
 
-    document.getElementById('send').onclick = () => {
-      const title = document.getElementById('title').value.trim();
-      const content = document.getElementById('content').value.trim();
-      if (!category){document.getElementById('status').innerText='Выбери категорию';return;}
-      if (!title){document.getElementById('status').innerText='Введи заголовок';return;}
-      tg.sendData(JSON.stringify({type:'blog_post', category, title, content}));
-      tg.close();
-    };
-  </script>
+  function cardSpeech(item){
+    const div = document.createElement('div'); div.className = 'card';
+    div.innerHTML = `
+      <div class="title">📄 ${item.title||"Документ"}</div>
+      <a class="btn" target="_blank" href="${item.url}">Открыть</a>
+    `;
+    return div;
+  }
+  function cardAudio(item){
+    const div = document.createElement('div'); div.className = 'card';
+    div.innerHTML = `
+      <div class="title">🎧 ${item.title||"Аудио"}</div>
+      <audio controls src="${item.url}"></audio>
+      <div class="note">Если не играет — открой ссылку в новой вкладке и проверь, что у файла в Google Drive включён доступ «По ссылке».</div>
+    `;
+    return div;
+  }
+
+  function render(){
+    const ws = document.getElementById('wrap-speech');
+    const wa = document.getElementById('wrap-audio');
+    ws.innerHTML = ''; wa.innerHTML = '';
+
+    (DATA.speech||[]).forEach(x => ws.appendChild(cardSpeech(x)));
+    (DATA.audio||[]).forEach(x => wa.appendChild(cardAudio(x)));
+  }
+
+  function tabs(){
+    const ts = document.getElementById('tab-speech');
+    const ta = document.getElementById('tab-audio');
+    const ws = document.getElementById('wrap-speech');
+    const wa = document.getElementById('wrap-audio');
+
+    ts.onclick = ()=>{ ts.classList.add('active'); ta.classList.remove('active'); ws.style.display='grid'; wa.style.display='none'; }
+    ta.onclick = ()=>{ ta.classList.add('active'); ts.classList.remove('active'); wa.style.display='grid'; ws.style.display='none'; }
+  }
+
+  render(); tabs();
+</script>
 </body>
 </html>
