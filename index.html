@@ -38,16 +38,19 @@
 <script>
   const tg = window.Telegram.WebApp; tg.expand();
 
-  // === Настройки под твой репозиторий ===
+  // === Настрой под свой репозиторий ===
   const OWNER  = "igorogolenko815-ui";
   const REPO   = "blog-web";
   const BRANCH = "main";
 
-  // jsDelivr DATA API — список файлов всего репозитория
-  const DATA_API = `https://data.jsdelivr.com/v1/package/gh/${OWNER}/${REPO}@${BRANCH}`;
-  // CDN для отдачи самих файлов
+  // GitHub API для ПОЛУЧЕНИЯ СПИСКА файлов (мгновенно)
+  const GH_API_SPEECH = `https://api.github.com/repos/${OWNER}/${REPO}/contents/speeches?ref=${BRANCH}`;
+  const GH_API_AUDIO  = `https://api.github.com/repos/${OWNER}/${REPO}/contents/audio?ref=${BRANCH}`;
+
+  // jsDelivr CDN для ОТДАЧИ самих файлов (быстро/удобно для <audio>)
   const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}`;
 
+  // какие расширения показывать
   const DOC_EXT = [".pdf",".doc",".docx",".txt"];
   const AUD_EXT = [".mp3",".m4a",".wav",".ogg"];
 
@@ -60,7 +63,7 @@
   const nice = s => (s||"").replace(/^.*\//,"").replace(/[_\-]+/g," ").replace(/\s+/g," ").trim();
   const endsWithAny = (name, exts) => exts.some(e => name.toLowerCase().endsWith(e));
 
-  function extType(name){
+  function audioType(name){
     const n = name.toLowerCase();
     if(n.endsWith(".mp3")) return "audio/mpeg";
     if(n.endsWith(".m4a")) return "audio/mp4";
@@ -70,7 +73,7 @@
   }
 
   function cardDoc(file){
-    const url = `${CDN_BASE}/${encodeURI(file.name)}`;
+    const url = `${CDN_BASE}/speeches/${encodeURIComponent(file.name)}`;
     const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
       <div class="title">📄 ${nice(file.name)}</div>
@@ -82,8 +85,8 @@
   }
 
   function cardAudio(file){
-    const url = `${CDN_BASE}/${encodeURI(file.name)}`;
-    const type = extType(file.name);
+    const url = `${CDN_BASE}/audio/${encodeURIComponent(file.name)}`;
+    const type = audioType(file.name);
     const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
       <div class="title">🎧 ${nice(file.name)}</div>
@@ -99,25 +102,14 @@
     return div;
   }
 
-  // Рекурсивно разворачиваем дерево файлов из jsDelivr DATA API
-  function flattenFiles(tree, prefix=""){
-    const out = [];
-    (tree.files||[]).forEach(node=>{
-      const path = prefix ? `${prefix}/${node.name}` : node.name;
-      if(node.type === "file"){
-        out.push({ name: path, size: node.size||null });
-      } else if (node.type === "directory"){
-        out.push(...flattenFiles(node, path));
-      }
-    });
-    return out;
-  }
-
-  async function loadAllFiles(){
-    const r = await fetch(DATA_API, {cache:"no-store"});
-    if(!r.ok) throw new Error("Не удалось получить список файлов (jsDelivr)");
-    const data = await r.json();
-    return flattenFiles(data);
+  async function fetchDir(apiUrl){
+    // добавим cache-busting, чтобы точно не залипало
+    const r = await fetch(apiUrl + `&t=${Date.now()}`, { cache: "no-store" });
+    if(!r.ok) throw new Error("GitHub API error");
+    /** @type {Array<{name:string, size:number, type:string}>} */
+    const arr = await r.json();
+    // API возвращает только одну папку без рекурсии — нам и нужно
+    return arr.filter(x => x.type === "file");
   }
 
   async function render(){
@@ -127,19 +119,22 @@
     wa.innerHTML = '<div class="card empty">Загружаю…</div>';
 
     try{
-      const all = await loadAllFiles();
+      const [docsRaw, audsRaw] = await Promise.all([
+        fetchDir(GH_API_SPEECH),
+        fetchDir(GH_API_AUDIO),
+      ]);
 
-      const docs = all
-        .filter(f => f.name.startsWith("speeches/") && endsWithAny(f.name, DOC_EXT))
+      const docs = docsRaw
+        .filter(f => endsWithAny(f.name, DOC_EXT))
         .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
 
-      const auds = all
-        .filter(f => f.name.startsWith("audio/") && endsWithAny(f.name, AUD_EXT))
+      const auds = audsRaw
+        .filter(f => endsWithAny(f.name, AUD_EXT))
         .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
 
       ws.innerHTML = ''; wa.innerHTML = '';
       if(!docs.length){
-        ws.innerHTML = '<div class="card empty">В «/speeches» пока пусто. Просто добавь туда файлы и сделай push — они появятся сами.</div>';
+        ws.innerHTML = '<div class="card empty">В «/speeches» пока пусто. Добавь файлы и сделай push — они появятся сами.</div>';
       } else {
         docs.forEach(f => ws.appendChild(cardDoc(f)));
       }
@@ -149,8 +144,8 @@
         auds.forEach(f => wa.appendChild(cardAudio(f)));
       }
     }catch(e){
-      ws.innerHTML = '<div class="card empty">Не удалось загрузить список файлов. Проверь доступность jsDelivr.</div>';
-      wa.innerHTML = '<div class="card empty">Не удалось загрузить список файлов. Проверь доступность jsDelivr.</div>';
+      ws.innerHTML = '<div class="card empty">Не удалось получить список из GitHub. Попробуй обновить страницу.</div>';
+      wa.innerHTML = '<div class="card empty">Не удалось получить список из GitHub. Попробуй обновить страницу.</div>';
     }
   }
 
