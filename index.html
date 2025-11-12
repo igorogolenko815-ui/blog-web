@@ -6,63 +6,85 @@
   <title>Доп Инфа — Спичи и Аудио</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    :root { --accent:#6c5ce7; }
+    :root{--accent:#6c5ce7}
     *{box-sizing:border-box}
-    body{font-family:system-ui, Arial; margin:16px; background:#0f1226; color:#e9e9f5}
+    body{font-family:system-ui,Arial;margin:16px;background:#0f1226;color:#e9e9f5}
     h2{margin:0 0 12px}
-    .tabs{display:flex; gap:8px; margin-bottom:12px}
-    .tab{padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); cursor:pointer; user-select:none}
-    .tab.active{background:var(--accent); border-color:var(--accent); color:#fff}
-    .grid{display:grid; grid-template-columns:1fr; gap:12px}
+    .tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .tab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.15);
+         background:rgba(255,255,255,.06);cursor:pointer;user-select:none}
+    .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .subtabs{display:flex;gap:8px;margin:0 0 12px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
     @media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
-    .card{border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); border-radius:14px; padding:12px}
-    .title{font-weight:600; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-    .meta{font-size:12px; color:#b8bcff; margin-bottom:8px}
-    .btn{display:inline-block; padding:9px 12px; border-radius:10px; border:0; background:var(--accent); color:#fff; text-decoration:none}
-    .note{font-size:13px; color:#bfc3ff}
+    .card{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+          border-radius:14px;padding:12px}
+    .title{font-weight:600;margin-bottom:8px;display:flex;gap:8px;align-items:center}
+    .btn{display:inline-block;padding:9px 12px;border-radius:10px;border:0;background:var(--accent);color:#fff;text-decoration:none}
+    .note{font-size:13px;color:#bfc3ff}
     .muted{color:#9aa0ff;font-size:13px}
-    audio{width:100%; margin-top:6px}
-    .empty{opacity:.8}
+    audio{width:100%;margin-top:6px}
   </style>
 </head>
 <body>
   <h2>🧩 Доп Инфа</h2>
+
+  <!-- Главные вкладки -->
   <div class="tabs">
     <div id="tab-speech" class="tab active">Читать спичи</div>
     <div id="tab-audio"  class="tab">Слушать холодку</div>
+  </div>
+
+  <!-- Подвкладки внутри "Слушать холодку" -->
+  <div id="audio-subtabs" class="subtabs" style="display:none">
+    <div class="tab active" data-sub="rostelecom">Ростелеком</div>
+    <div class="tab" data-sub="poliklinika">Поликлиника</div>
+    <div class="tab" data-sub="domofon">Домофон</div>
   </div>
 
   <div id="wrap-speech" class="grid"></div>
   <div id="wrap-audio"  class="grid" style="display:none"></div>
 
 <script>
-  const tg = window.Telegram.WebApp; tg.expand();
+  // Развернуть Telegram WebApp
+  (window.Telegram?.WebApp||{}).expand?.();
 
-  // === Настрой под свой репозиторий ===
+  // ===== Настройки под твой репозиторий (Ничего не меняй, если всё как у тебя) =====
   const OWNER  = "igorogolenko815-ui";
   const REPO   = "blog-web";
   const BRANCH = "main";
-
-  // GitHub API для ПОЛУЧЕНИЯ СПИСКА файлов (мгновенно)
-  const GH_API_SPEECH = `https://api.github.com/repos/${OWNER}/${REPO}/contents/speeches?ref=${BRANCH}`;
-  const GH_API_AUDIO  = `https://api.github.com/repos/${OWNER}/${REPO}/contents/audio?ref=${BRANCH}`;
-
-  // jsDelivr CDN для ОТДАЧИ самих файлов (быстро/удобно для <audio>)
-  const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}`;
-
-  // какие расширения показывать
-  const DOC_EXT = [".pdf",".doc",".docx",".txt"];
-  const AUD_EXT = [".mp3",".m4a",".wav",".ogg"];
-
-  const fmtSize = b => {
-    if (b == null) return "";
-    const u = ["Б","КБ","МБ","ГБ"]; let i=0;
-    while (b>=1024 && i<u.length-1){ b/=1024; i++; }
-    return `${b.toFixed(i?1:0)} ${u[i]}`;
+  // Папки
+  const DIR_SPEECH = "speeches";
+  const DIR_AUDIO  = "audio";
+  const AUDIO_SUBS = {
+    rostelecom: "rostelecom",
+    poliklinika: "poliklinika",
+    domofon: "domofon",
   };
-  const nice = s => (s||"").replace(/^.*\//,"").replace(/[_\-]+/g," ").replace(/\s+/g," ").trim();
-  const endsWithAny = (name, exts) => exts.some(e => name.toLowerCase().endsWith(e));
+  // ===============================================================================
 
+  // GitHub API: получаем список файлов из папки
+  async function listRepoDir(path){
+    const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${encodeURI(path)}?ref=${BRANCH}`;
+    const r = await fetch(url);
+    if(!r.ok) return [];
+    const js = await r.json();
+    return (Array.isArray(js) ? js : []).filter(x=>x && x.type==="file");
+  }
+  // Ссылка на «raw» файл
+  function rawUrl(path){
+    return `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${encodeURI(path)}`;
+  }
+  // Иконка по расширению
+  function fileEmoji(name){
+    const n = name.toLowerCase();
+    if(n.endsWith(".mp3")||n.endsWith(".m4a")||n.endsWith(".wav")||n.endsWith(".ogg")) return "🎧";
+    if(n.endsWith(".pdf")) return "📕";
+    if(n.endsWith(".doc")||n.endsWith(".docx")) return "📘";
+    if(n.endsWith(".txt")) return "📄";
+    return "📎";
+  }
+  // MIME для audio
   function audioType(name){
     const n = name.toLowerCase();
     if(n.endsWith(".mp3")) return "audio/mpeg";
@@ -72,94 +94,95 @@
     return "audio/mpeg";
   }
 
-  function cardDoc(file){
-    const url = `${CDN_BASE}/speeches/${encodeURIComponent(file.name)}`;
+  // ===== Рендер карточек =====
+  function cardSpeech(file){
+    const url = rawUrl(`${DIR_SPEECH}/${file.name}`);
     const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
-      <div class="title">📄 ${nice(file.name)}</div>
-      <div class="meta">${file.name} • ${fmtSize(file.size)}</div>
+      <div class="title">${fileEmoji(file.name)} ${file.name}</div>
       <a class="btn" href="${url}" target="_blank">Открыть документ</a>
-      <div class="muted">Файл из репозитория /speeches/</div>
-    `;
+      <div class="muted">Файл из репозитория /${DIR_SPEECH}/</div>`;
     return div;
   }
-
-  function cardAudio(file){
-    const url = `${CDN_BASE}/audio/${encodeURIComponent(file.name)}`;
+  function cardAudio(file, subKey){
+    const path = `${DIR_AUDIO}/${AUDIO_SUBS[subKey]}/${file.name}`;
+    const url  = rawUrl(path);
     const type = audioType(file.name);
     const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
-      <div class="title">🎧 ${nice(file.name)}</div>
-      <div class="meta">${file.name} • ${fmtSize(file.size)}</div>
-      <audio controls preload="none" crossorigin="anonymous">
-        <source src="${url}" type="${type}"/>
-        Ваш браузер не поддерживает аудио.
-      </audio>
-      <div class="note">Если вдруг не играет, открой через ссылку ниже.</div>
+      <div class="title">${fileEmoji(file.name)} ${file.name}</div>
+      <audio controls preload="none"><source src="${url}" type="${type}"/></audio>
+      <div class="note">Если не играет — открой ссылку ниже.</div>
       <p><a class="btn" href="${url}" target="_blank">Открыть в новой вкладке</a></p>
-      <div class="muted">Файл из репозитория /audio/</div>
-    `;
+      <div class="muted">Файл из репозитория /${DIR_AUDIO}/${AUDIO_SUBS[subKey]}/</div>`;
     return div;
   }
 
-  async function fetchDir(apiUrl){
-    // добавим cache-busting, чтобы точно не залипало
-    const r = await fetch(apiUrl + `&t=${Date.now()}`, { cache: "no-store" });
-    if(!r.ok) throw new Error("GitHub API error");
-    /** @type {Array<{name:string, size:number, type:string}>} */
-    const arr = await r.json();
-    // API возвращает только одну папку без рекурсии — нам и нужно
-    return arr.filter(x => x.type === "file");
-  }
-
-  async function render(){
+  // ===== Загрузка данных =====
+  async function loadSpeeches(){
     const ws = document.getElementById('wrap-speech');
-    const wa = document.getElementById('wrap-audio');
-    ws.innerHTML = '<div class="card empty">Загружаю…</div>';
-    wa.innerHTML = '<div class="card empty">Загружаю…</div>';
-
-    try{
-      const [docsRaw, audsRaw] = await Promise.all([
-        fetchDir(GH_API_SPEECH),
-        fetchDir(GH_API_AUDIO),
-      ]);
-
-      const docs = docsRaw
-        .filter(f => endsWithAny(f.name, DOC_EXT))
-        .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
-
-      const auds = audsRaw
-        .filter(f => endsWithAny(f.name, AUD_EXT))
-        .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
-
-      ws.innerHTML = ''; wa.innerHTML = '';
-      if(!docs.length){
-        ws.innerHTML = '<div class="card empty">В «/speeches» пока пусто. Добавь файлы и сделай push — они появятся сами.</div>';
-      } else {
-        docs.forEach(f => ws.appendChild(cardDoc(f)));
-      }
-      if(!auds.length){
-        wa.innerHTML = '<div class="card empty">В «/audio» пока пусто. Добавь аудиофайлы и сделай push.</div>';
-      } else {
-        auds.forEach(f => wa.appendChild(cardAudio(f)));
-      }
-    }catch(e){
-      ws.innerHTML = '<div class="card empty">Не удалось получить список из GitHub. Попробуй обновить страницу.</div>';
-      wa.innerHTML = '<div class="card empty">Не удалось получить список из GitHub. Попробуй обновить страницу.</div>';
+    ws.innerHTML = '<div class="card">Загружаю...</div>';
+    const items = await listRepoDir(DIR_SPEECH);
+    ws.innerHTML = '';
+    if(!items.length){
+      ws.innerHTML = `<div class="card">В «/${DIR_SPEECH}» пока пусто. Добавь файлы и сделай push — они появятся сами.</div>`;
+      return;
     }
+    items.forEach(f => ws.appendChild(cardSpeech(f)));
   }
 
-  function setupTabs(){
-    const ts = document.getElementById('tab-speech');
-    const ta = document.getElementById('tab-audio');
+  async function loadAudio(subKey){
+    const wa = document.getElementById('wrap-audio');
+    wa.innerHTML = '<div class="card">Загружаю...</div>';
+    const subdir = AUDIO_SUBS[subKey];
+    const items = await listRepoDir(`${DIR_AUDIO}/${subdir}`);
+    wa.innerHTML = '';
+    if(!items.length){
+      wa.innerHTML = `<div class="card">В «/${DIR_AUDIO}/${subdir}» пока пусто. Добавь аудиофайлы и сделай push.</div>`;
+      return;
+    }
+    items.forEach(f => wa.appendChild(cardAudio(f, subKey)));
+  }
+
+  // ===== Логика вкладок =====
+  function initTabs(){
+    const tSpeech = document.getElementById('tab-speech');
+    const tAudio  = document.getElementById('tab-audio');
     const ws = document.getElementById('wrap-speech');
     const wa = document.getElementById('wrap-audio');
-    ts.onclick = ()=>{ ts.classList.add('active'); ta.classList.remove('active'); ws.style.display='grid'; wa.style.display='none'; };
-    ta.onclick = ()=>{ ta.classList.add('active'); ts.classList.remove('active'); wa.style.display='grid'; ws.style.display='none'; };
+    const sub = document.getElementById('audio-subtabs');
+
+    tSpeech.onclick = ()=>{
+      tSpeech.classList.add('active'); tAudio.classList.remove('active');
+      sub.style.display='none'; ws.style.display='grid'; wa.style.display='none';
+    };
+    tAudio.onclick = ()=>{
+      tAudio.classList.add('active'); tSpeech.classList.remove('active');
+      sub.style.display='flex'; ws.style.display='none'; wa.style.display='grid';
+      // по умолчанию открываем первую подтаку
+      const first = sub.querySelector('.tab[data-sub].active')?.dataset.sub || 'rostelecom';
+      selectSub(first);
+    };
+
+    // клики по подтаксам
+    [...document.querySelectorAll('#audio-subtabs .tab')].forEach(el=>{
+      el.onclick = ()=>{
+        [...document.querySelectorAll('#audio-subtabs .tab')].forEach(x=>x.classList.remove('active'));
+        el.classList.add('active');
+        selectSub(el.dataset.sub);
+      };
+    });
   }
 
-  setupTabs();
-  render();
+  let currentSub = 'rostelecom';
+  async function selectSub(key){
+    currentSub = key;
+    await loadAudio(key);
+  }
+
+  // ===== Старт =====
+  loadSpeeches();
+  initTabs();
 </script>
 </body>
 </html>
