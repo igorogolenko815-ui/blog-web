@@ -7,10 +7,11 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root { --accent:#6c5ce7; }
+    *{box-sizing:border-box}
     body{font-family:system-ui, Arial; margin:16px; background:#0f1226; color:#e9e9f5}
     h2{margin:0 0 12px}
     .tabs{display:flex; gap:8px; margin-bottom:12px}
-    .tab{padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); cursor:pointer}
+    .tab{padding:10px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.06); cursor:pointer; user-select:none}
     .tab.active{background:var(--accent); border-color:var(--accent); color:#fff}
     .grid{display:grid; grid-template-columns:1fr; gap:12px}
     @media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
@@ -18,6 +19,7 @@
     .title{font-weight:600; margin-bottom:8px}
     .btn{display:inline-block; padding:9px 12px; border-radius:10px; border:0; background:var(--accent); color:#fff; text-decoration:none}
     .note{font-size:13px; color:#bfc3ff}
+    .muted{color:#9aa0ff;font-size:13px}
     audio{width:100%; margin-top:6px}
   </style>
 </head>
@@ -32,53 +34,51 @@
   <div id="wrap-audio"  class="grid" style="display:none"></div>
 
 <script>
-  // Телеграм-вью развернуть
+  // Разворачиваем окно WebApp
   const tg = window.Telegram.WebApp; tg.expand();
 
-  // ====== ТВОИ ССЫЛКИ (уже подставил) ======
-  // Если добавишь новые гугл-ссылки — просто вставляй их в массивы.
-  // Для аудио используем прямую ссылку вида uc?export=download&id=FILE_ID (ниже функция gd())
-  function gd(driveViewUrl){
-    // из вида https://drive.google.com/file/d/<ID>/view?... -> https://drive.google.com/uc?export=download&id=<ID>
-    const m = driveViewUrl.match(/\/d\/([^/]+)\//);
-    const id = m ? m[1] : null;
-    return id ? `https://drive.google.com/uc?export=download&id=${id}` : driveViewUrl;
-  }
+  // Базовый префикс CDN для твоего репозитория (jsDelivr)
+  const BASE = "https://cdn.jsdelivr.net/gh/igorogolenko815-ui/blog-web@main";
 
-  const DATA = {
-    speech: [
-      // Документы (откроются по ссылке)
-      { title: "Спич #1", url: "https://drive.google.com/file/d/1iabZtTnf1kGZJ1X70JCNauWCi10LiOBa/view?usp=drive_link" },
-      { title: "Спич #2", url: "https://drive.google.com/file/d/1OFtXWKDADqlC-lLuxh16ifwPgVKaAO3g/view?usp=drive_link" },
-      { title: "Спич #3", url: "https://drive.google.com/file/d/1759Cz_qgCU3e1kg7wlADLd4BqUXKhh5p/view?usp=drive_link" },
-      { title: "Спич #4", url: "https://drive.google.com/file/d/1eISxyMlFfBYN2kSbfSBvEf6fr6a8q6Uu/view?usp=drive_link" },
-      { title: "Спич #5", url: "https://drive.google.com/file/d/1PoO9uwuPPpDHsvMSx-VsDB2ED3B8qWhY/view?usp=drive_link" },
-      { title: "Спич #6", url: "https://drive.google.com/file/d/1ojZbe535ULlWYEAksLwzUwme4ihXNSDm/view?usp=drive_link" },
-      { title: "Спич #7", url: "https://drive.google.com/file/d/1Fv10aUEghDj9GYu44Mny48UBJMT6BvaO/view?usp=drive_link" },
-      { title: "Спич #8", url: "https://drive.google.com/file/d/1hkp20uLS-ekEMmRiHfvMF40EA46cdfWL/view?usp=drive_link" }
-    ],
-    audio: [
-      // Аудио (играют прямо на странице)
-      { title: "Аудио #1", url: gd("https://drive.google.com/file/d/1xj25CgY1NyP-ZiTpnPxTC9SOkrx7L2Ml/view?usp=drive_link") },
-      { title: "Аудио #2", url: gd("https://drive.google.com/file/d/1bHR2Anj_nKzsN6h_hilfm1Uq13PNXO9l/view?usp=drive_link") }
-    ]
-  };
-  // =========================================
+  // === ФАЙЛЫ (добавляй сюда новые имена по мере загрузки в /speeches и /audio) ===
+  const SPEECH_FILES = ["mgts.pdf", "poliklinika.docx"];
+  const AUDIO_FILES  = ["rostelecom-1.mp3", "mgts-domofon.m4a"];
+  // ==============================================================================
 
-  function cardSpeech(item){
-    const div = document.createElement('div'); div.className = 'card';
+  // Помощники
+  function speechCard(name){
+    const url = `${BASE}/speeches/${encodeURIComponent(name)}`;
+    const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
-      <div class="title">📄 ${item.title||"Документ"}</div>
-      <a class="btn" target="_blank" href="${item.url}">Открыть</a>
+      <div class="title">📄 ${name}</div>
+      <a class="btn" href="${url}" target="_blank">Открыть документ</a>
+      <div class="muted">Файл из репозитория /speeches/</div>
     `;
     return div;
   }
-  function cardAudio(item){
-    const div = document.createElement('div'); div.className = 'card';
+
+  function audioType(name){
+    const n = name.toLowerCase();
+    if(n.endsWith(".mp3")) return "audio/mpeg";
+    if(n.endsWith(".m4a")) return "audio/mp4";
+    if(n.endsWith(".wav")) return "audio/wav";
+    if(n.endsWith(".ogg")) return "audio/ogg";
+    return "audio/mpeg";
+  }
+
+  function audioCard(name){
+    const url = `${BASE}/audio/${encodeURIComponent(name)}`;
+    const type = audioType(name);
+    const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
-      <div class="title">🎧 ${item.title||"Аудио"}</div>
-      <audio controls src="${item.url}"></audio>
-      <div class="note">Если не играет — открой ссылку в новой вкладке и проверь, что у файла в Google Drive включён доступ «По ссылке».</div>
+      <div class="title">🎧 ${name}</div>
+      <audio controls preload="none" crossorigin="anonymous">
+        <source src="${url}" type="${type}"/>
+        Ваш браузер не поддерживает аудио.
+      </audio>
+      <div class="note">Если вдруг не играет, открой через ссылку ниже.</div>
+      <p><a class="btn" href="${url}" target="_blank">Открыть в новой вкладке</a></p>
+      <div class="muted">Файл из репозитория /audio/</div>
     `;
     return div;
   }
@@ -88,8 +88,17 @@
     const wa = document.getElementById('wrap-audio');
     ws.innerHTML = ''; wa.innerHTML = '';
 
-    (DATA.speech||[]).forEach(x => ws.appendChild(cardSpeech(x)));
-    (DATA.audio||[]).forEach(x => wa.appendChild(cardAudio(x)));
+    if(!SPEECH_FILES.length){
+      ws.innerHTML = '<div class="card">Нет документов. Добавь файлы в папку <b>/speeches</b> и укажи их имена в массиве <code>SPEECH_FILES</code>.</div>';
+    } else {
+      SPEECH_FILES.forEach(n => ws.appendChild(speechCard(n)));
+    }
+
+    if(!AUDIO_FILES.length){
+      wa.innerHTML = '<div class="card">Нет аудио. Добавь файлы в папку <b>/audio</b> и укажи их имена в массиве <code>AUDIO_FILES</code>.</div>';
+    } else {
+      AUDIO_FILES.forEach(n => wa.appendChild(audioCard(n)));
+    }
   }
 
   function tabs(){
