@@ -16,48 +16,51 @@
     .grid{display:grid; grid-template-columns:1fr; gap:12px}
     @media(min-width:760px){.grid{grid-template-columns:1fr 1fr}}
     .card{border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); border-radius:14px; padding:12px}
-    .title{font-weight:600; margin-bottom:8px}
+    .title{font-weight:600; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .meta{font-size:12px; color:#b8bcff; margin-bottom:8px}
     .btn{display:inline-block; padding:9px 12px; border-radius:10px; border:0; background:var(--accent); color:#fff; text-decoration:none}
     .note{font-size:13px; color:#bfc3ff}
     .muted{color:#9aa0ff;font-size:13px}
     audio{width:100%; margin-top:6px}
+    .empty{opacity:.8}
   </style>
 </head>
 <body>
   <h2>🧩 Доп Инфа</h2>
   <div class="tabs">
-    <div id="tab-speech" class="tab active">Спичи</div>
-    <div id="tab-audio"  class="tab">Аудио</div>
+    <div id="tab-speech" class="tab active">Читать спичи</div>
+    <div id="tab-audio"  class="tab">Слушать холодку</div>
   </div>
 
   <div id="wrap-speech" class="grid"></div>
   <div id="wrap-audio"  class="grid" style="display:none"></div>
 
 <script>
-  // Разворачиваем окно WebApp
   const tg = window.Telegram.WebApp; tg.expand();
 
-  // Базовый префикс CDN для твоего репозитория (jsDelivr)
-  const BASE = "https://cdn.jsdelivr.net/gh/igorogolenko815-ui/blog-web@main";
+  // === Настройки под твой репозиторий ===
+  const OWNER  = "igorogolenko815-ui";
+  const REPO   = "blog-web";
+  const BRANCH = "main";
 
-  // === ФАЙЛЫ (добавляй сюда новые имена по мере загрузки в /speeches и /audio) ===
-  const SPEECH_FILES = ["mgts.pdf", "poliklinika.docx"];
-  const AUDIO_FILES  = ["rostelecom-1.mp3", "mgts-domofon.m4a"];
-  // ==============================================================================
+  // jsDelivr DATA API — список файлов всего репозитория
+  const DATA_API = `https://data.jsdelivr.com/v1/package/gh/${OWNER}/${REPO}@${BRANCH}`;
+  // CDN для отдачи самих файлов
+  const CDN_BASE = `https://cdn.jsdelivr.net/gh/${OWNER}/${REPO}@${BRANCH}`;
 
-  // Помощники
-  function speechCard(name){
-    const url = `${BASE}/speeches/${encodeURIComponent(name)}`;
-    const div = document.createElement('div'); div.className='card';
-    div.innerHTML = `
-      <div class="title">📄 ${name}</div>
-      <a class="btn" href="${url}" target="_blank">Открыть документ</a>
-      <div class="muted">Файл из репозитория /speeches/</div>
-    `;
-    return div;
-  }
+  const DOC_EXT = [".pdf",".doc",".docx",".txt"];
+  const AUD_EXT = [".mp3",".m4a",".wav",".ogg"];
 
-  function audioType(name){
+  const fmtSize = b => {
+    if (b == null) return "";
+    const u = ["Б","КБ","МБ","ГБ"]; let i=0;
+    while (b>=1024 && i<u.length-1){ b/=1024; i++; }
+    return `${b.toFixed(i?1:0)} ${u[i]}`;
+  };
+  const nice = s => (s||"").replace(/^.*\//,"").replace(/[_\-]+/g," ").replace(/\s+/g," ").trim();
+  const endsWithAny = (name, exts) => exts.some(e => name.toLowerCase().endsWith(e));
+
+  function extType(name){
     const n = name.toLowerCase();
     if(n.endsWith(".mp3")) return "audio/mpeg";
     if(n.endsWith(".m4a")) return "audio/mp4";
@@ -66,12 +69,25 @@
     return "audio/mpeg";
   }
 
-  function audioCard(name){
-    const url = `${BASE}/audio/${encodeURIComponent(name)}`;
-    const type = audioType(name);
+  function cardDoc(file){
+    const url = `${CDN_BASE}/${encodeURI(file.name)}`;
     const div = document.createElement('div'); div.className='card';
     div.innerHTML = `
-      <div class="title">🎧 ${name}</div>
+      <div class="title">📄 ${nice(file.name)}</div>
+      <div class="meta">${file.name} • ${fmtSize(file.size)}</div>
+      <a class="btn" href="${url}" target="_blank">Открыть документ</a>
+      <div class="muted">Файл из репозитория /speeches/</div>
+    `;
+    return div;
+  }
+
+  function cardAudio(file){
+    const url = `${CDN_BASE}/${encodeURI(file.name)}`;
+    const type = extType(file.name);
+    const div = document.createElement('div'); div.className='card';
+    div.innerHTML = `
+      <div class="title">🎧 ${nice(file.name)}</div>
+      <div class="meta">${file.name} • ${fmtSize(file.size)}</div>
       <audio controls preload="none" crossorigin="anonymous">
         <source src="${url}" type="${type}"/>
         Ваш браузер не поддерживает аудио.
@@ -83,35 +99,72 @@
     return div;
   }
 
-  function render(){
+  // Рекурсивно разворачиваем дерево файлов из jsDelivr DATA API
+  function flattenFiles(tree, prefix=""){
+    const out = [];
+    (tree.files||[]).forEach(node=>{
+      const path = prefix ? `${prefix}/${node.name}` : node.name;
+      if(node.type === "file"){
+        out.push({ name: path, size: node.size||null });
+      } else if (node.type === "directory"){
+        out.push(...flattenFiles(node, path));
+      }
+    });
+    return out;
+  }
+
+  async function loadAllFiles(){
+    const r = await fetch(DATA_API, {cache:"no-store"});
+    if(!r.ok) throw new Error("Не удалось получить список файлов (jsDelivr)");
+    const data = await r.json();
+    return flattenFiles(data);
+  }
+
+  async function render(){
     const ws = document.getElementById('wrap-speech');
     const wa = document.getElementById('wrap-audio');
-    ws.innerHTML = ''; wa.innerHTML = '';
+    ws.innerHTML = '<div class="card empty">Загружаю…</div>';
+    wa.innerHTML = '<div class="card empty">Загружаю…</div>';
 
-    if(!SPEECH_FILES.length){
-      ws.innerHTML = '<div class="card">Нет документов. Добавь файлы в папку <b>/speeches</b> и укажи их имена в массиве <code>SPEECH_FILES</code>.</div>';
-    } else {
-      SPEECH_FILES.forEach(n => ws.appendChild(speechCard(n)));
-    }
+    try{
+      const all = await loadAllFiles();
 
-    if(!AUDIO_FILES.length){
-      wa.innerHTML = '<div class="card">Нет аудио. Добавь файлы в папку <b>/audio</b> и укажи их имена в массиве <code>AUDIO_FILES</code>.</div>';
-    } else {
-      AUDIO_FILES.forEach(n => wa.appendChild(audioCard(n)));
+      const docs = all
+        .filter(f => f.name.startsWith("speeches/") && endsWithAny(f.name, DOC_EXT))
+        .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
+
+      const auds = all
+        .filter(f => f.name.startsWith("audio/") && endsWithAny(f.name, AUD_EXT))
+        .sort((a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true}));
+
+      ws.innerHTML = ''; wa.innerHTML = '';
+      if(!docs.length){
+        ws.innerHTML = '<div class="card empty">В «/speeches» пока пусто. Просто добавь туда файлы и сделай push — они появятся сами.</div>';
+      } else {
+        docs.forEach(f => ws.appendChild(cardDoc(f)));
+      }
+      if(!auds.length){
+        wa.innerHTML = '<div class="card empty">В «/audio» пока пусто. Добавь аудиофайлы и сделай push.</div>';
+      } else {
+        auds.forEach(f => wa.appendChild(cardAudio(f)));
+      }
+    }catch(e){
+      ws.innerHTML = '<div class="card empty">Не удалось загрузить список файлов. Проверь доступность jsDelivr.</div>';
+      wa.innerHTML = '<div class="card empty">Не удалось загрузить список файлов. Проверь доступность jsDelivr.</div>';
     }
   }
 
-  function tabs(){
+  function setupTabs(){
     const ts = document.getElementById('tab-speech');
     const ta = document.getElementById('tab-audio');
     const ws = document.getElementById('wrap-speech');
     const wa = document.getElementById('wrap-audio');
-
-    ts.onclick = ()=>{ ts.classList.add('active'); ta.classList.remove('active'); ws.style.display='grid'; wa.style.display='none'; }
-    ta.onclick = ()=>{ ta.classList.add('active'); ts.classList.remove('active'); wa.style.display='grid'; ws.style.display='none'; }
+    ts.onclick = ()=>{ ts.classList.add('active'); ta.classList.remove('active'); ws.style.display='grid'; wa.style.display='none'; };
+    ta.onclick = ()=>{ ta.classList.add('active'); ts.classList.remove('active'); wa.style.display='grid'; ws.style.display='none'; };
   }
 
-  render(); tabs();
+  setupTabs();
+  render();
 </script>
 </body>
 </html>
